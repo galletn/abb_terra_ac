@@ -1,0 +1,10 @@
+{
+  "domain": "abb_terra_ac",
+  "name": "ABB Terra AC Wallbox",
+  "version": "1.0.0",
+  "documentation": "https://github.com/galletn/abb_terra_ac",
+  "requirements": [],
+  "codeowners": [],
+  "config_flow": true,
+  "iot_class": "local_polling"
+}

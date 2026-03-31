@@ -1,0 +1,36 @@
+set_current_limit:
+  name: Set Current Limit
+  description: Set the charging current limit
+  fields:
+    current:
+      name: Current
+      description: Charging current limit in amps (0-16A)
+      required: true
+      example: 10
+      selector:
+        number:
+          min: 0
+          max: 16
+          step: 1
+          unit_of_measurement: "A"
+
+start_charging:
+  name: Start Charging
+  description: Start charging with specified current limit (sends START command via register)
+  fields:
+    current:
+      name: Current
+      description: Charging current limit in amps (6-16A)
+      required: false
+      default: 6
+      example: 10
+      selector:
+        number:
+          min: 6
+          max: 16
+          step: 1
+          unit_of_measurement: "A"
+
+stop_charging:
+  name: Stop Charging
+  description: Emergency stop - immediately stops charging (sends STOP command via register 16645)
