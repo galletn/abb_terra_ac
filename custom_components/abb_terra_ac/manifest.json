@@ -1,12 +1,12 @@
 {
   "domain": "abb_terra_ac",
   "name": "ABB Terra AC Wallbox",
-  "version": "1.0.0",
-  "documentation": "https://github.com/galletn/abb_terra_ac",
-  "issue_tracker": "https://github.com/galletn/abb_terra_ac/issues",
-  "requirements": [],
   "codeowners": ["@galletn"],
   "config_flow": true,
+  "documentation": "https://github.com/galletn/abb_terra_ac",
+  "integration_type": "device",
   "iot_class": "local_polling",
-  "integration_type": "device"
+  "issue_tracker": "https://github.com/galletn/abb_terra_ac/issues",
+  "requirements": [],
+  "version": "1.0.0"
 }
