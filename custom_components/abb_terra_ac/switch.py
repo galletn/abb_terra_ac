@@ -61,25 +61,23 @@ class ABBTerraACStartPauseSwitch(CoordinatorEntity, SwitchEntity):
         return "mdi:pause-circle-outline"
 
     async def async_turn_on(self, **kwargs) -> None:
-        """Start charging by setting current limit to default (6A)."""
+        """Start charging via start command, then set default current."""
         _LOGGER.info("Starting charging at %sA", DEFAULT_CHARGING_CURRENT)
 
-        success = await self.coordinator.async_set_current_limit(
-            DEFAULT_CHARGING_CURRENT
-        )
-
-        if not success:
-            _LOGGER.error("Failed to start charging")
-        else:
+        success = await self.coordinator.async_start_charging()
+        if success:
+            await self.coordinator.async_set_current_limit(DEFAULT_CHARGING_CURRENT)
             _LOGGER.info("Successfully started charging")
+        else:
+            _LOGGER.error("Failed to start charging")
 
     async def async_turn_off(self, **kwargs) -> None:
-        """Pause charging by setting current limit to 0A."""
-        _LOGGER.info("Pausing charging (setting current to 0A)")
+        """Stop charging via stop command and set current to 0A."""
+        _LOGGER.info("Stopping charging")
 
-        success = await self.coordinator.async_set_current_limit(0)
-
-        if not success:
-            _LOGGER.error("Failed to pause charging")
+        success = await self.coordinator.async_stop_charging()
+        if success:
+            await self.coordinator.async_set_current_limit(0)
+            _LOGGER.info("Successfully stopped charging")
         else:
-            _LOGGER.info("Successfully paused charging")
+            _LOGGER.error("Failed to stop charging")

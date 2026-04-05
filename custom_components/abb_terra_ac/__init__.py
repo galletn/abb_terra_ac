@@ -215,25 +215,19 @@ class ABBTerraACCoordinator(DataUpdateCoordinator):
         success = await self.async_write_register(16640, [high_word, low_word])
 
         if success:
-            # Request immediate refresh
-            await self.async_request_refresh()
+            # Optimistic update — set the value in coordinator data immediately
+            # so HA entity reflects the target, not the stale register value.
+            # The charger takes time to apply; next poll will read the real value.
+            if self.data is not None:
+                self.data["charging_current_limit"] = amps
+            self.async_set_updated_data(self.data)
 
         return success
 
     async def async_start_charging(self) -> bool:
         """Start charging (write 0 to register 16645)."""
-        success = await self.async_write_register(16645, [0])
-
-        if success:
-            await self.async_request_refresh()
-
-        return success
+        return await self.async_write_register(16645, [0])
 
     async def async_stop_charging(self) -> bool:
         """Stop charging (write 1 to register 16645)."""
-        success = await self.async_write_register(16645, [1])
-
-        if success:
-            await self.async_request_refresh()
-
-        return success
+        return await self.async_write_register(16645, [1])
