@@ -21,7 +21,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import ABBTerraACCoordinator
-from .const import DOMAIN, CHARGING_STATES
+from .const import DOMAIN, CHARGING_STATES, PLUGGED_IN_STATES, CHARGING_ACTIVE_STATES
 
 
 async def async_setup_entry(
@@ -244,5 +244,6 @@ class ABBTerraACChargingStateSensor(ABBTerraACSensor):
         state_code = self.coordinator.data.get("charging_state")
         return {
             "state_code": state_code,
-            "is_charging": state_code == 4,
+            "is_charging": state_code in CHARGING_ACTIVE_STATES,
+            "is_plugged_in": state_code in PLUGGED_IN_STATES,
         }
