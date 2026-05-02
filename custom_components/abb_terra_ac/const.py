@@ -6,21 +6,31 @@ CONF_UNIT_ID = "unit_id"
 DEFAULT_SCAN_INTERVAL = 5  # seconds
 
 # Charging states
-# Standard IEC 61851-1 states (0-5) and ABB custom states (128+)
+# The firmware emits both IEC 61851-1 codes (0-5) and ABB extended codes
+# (128-133) — sometimes flipping between an IEC and ABB code that mean the
+# same physical state. Synonyms below share a display string so the sensor
+# does not pingpong between equivalent names. The raw numeric code is still
+# exposed via the `state_code` attribute for debugging.
 CHARGING_STATES = {
-    # IEC 61851-1 standard states
-    0: "Idle (State A)",
-    1: "EV Connected - Pending Auth (State B1)",
-    2: "EV Connected - Ready (State B2)",
-    3: "EV Ready - No PWM (State C1)",
-    4: "Charging (State C2)",
-    5: "Other",
-    # ABB custom states (firmware-dependent)
-    128: "No Car Connected",
-    129: "Ready",
-    130: "Charging Complete",
+    # Idle / no car
+    0: "Idle",
+    128: "Idle",
+    # Connected, awaiting authorization
+    1: "Connected (auth pending)",
+    # Connected and ready
+    2: "Connected",
+    129: "Connected",
+    # Ready but no PWM signal
+    3: "Connected (no PWM)",
+    # Actively charging
+    4: "Charging",
     132: "Charging",
+    # Charging complete
+    130: "Charging Complete",
+    # Soft-paused (current limit at 0, session still authorized)
     133: "Paused",
+    # Catch-all
+    5: "Other",
 }
 
 # State codes that indicate the EV is plugged in

@@ -1,6 +1,7 @@
 """ABB Terra AC Wallbox integration for Home Assistant."""
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import timedelta
 
@@ -89,6 +90,10 @@ class ABBTerraACCoordinator(DataUpdateCoordinator):
         self.port = port
         self.unit_id = unit_id
         self._client = None
+        # Serializes all Modbus operations: the wallbox accepts only one
+        # active TCP session, so concurrent reads and writes on the shared
+        # client would interleave on the same socket and corrupt responses.
+        self._lock = asyncio.Lock()
 
     def _get_client(self) -> ModbusTcpClient:
         """Get or create Modbus client."""
@@ -102,7 +107,8 @@ class ABBTerraACCoordinator(DataUpdateCoordinator):
 
     async def _async_update_data(self) -> dict:
         """Fetch data from the wallbox."""
-        return await self.hass.async_add_executor_job(self._update_data)
+        async with self._lock:
+            return await self.hass.async_add_executor_job(self._update_data)
 
     def _update_data(self) -> dict:
         """Fetch data from the wallbox (sync)."""
@@ -152,7 +158,9 @@ class ABBTerraACCoordinator(DataUpdateCoordinator):
                 "voltage_l2": registers[25] * 0.1,  # 0.1V to V (32-bit, use low word)
                 "voltage_l3": registers[27] * 0.1,  # 0.1V to V (32-bit, use low word)
                 "active_power": registers[29],  # W (32-bit, use low word)
-                "energy_delivered": registers[31],  # Wh (32-bit, use low word)
+                # 32-bit big-endian: high word first. Reading only the low
+                # word would wrap the lifetime energy counter at 65 535 Wh.
+                "energy_delivered": (registers[30] << 16) | registers[31],  # Wh
                 "communication_timeout": registers[32],  # seconds (16-bit)
             }
 
@@ -172,9 +180,10 @@ class ABBTerraACCoordinator(DataUpdateCoordinator):
 
     async def async_write_register(self, address: int, values: list[int]) -> bool:
         """Write to a register."""
-        return await self.hass.async_add_executor_job(
-            self._write_register, address, values
-        )
+        async with self._lock:
+            return await self.hass.async_add_executor_job(
+                self._write_register, address, values
+            )
 
     def _write_register(self, address: int, values: list[int]) -> bool:
         """Write to a register (sync)."""
