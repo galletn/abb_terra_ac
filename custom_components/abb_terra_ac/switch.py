@@ -61,23 +61,24 @@ class ABBTerraACStartPauseSwitch(CoordinatorEntity, SwitchEntity):
         return "mdi:pause-circle-outline"
 
     async def async_turn_on(self, **kwargs) -> None:
-        """Start charging via start command, then set default current."""
-        _LOGGER.info("Starting charging at %sA", DEFAULT_CHARGING_CURRENT)
+        """Resume charging by raising the current limit. Does NOT send the
+        ABB start command (0x4105=0), so an authorized session stays active."""
+        _LOGGER.info("Resuming charging at %sA", DEFAULT_CHARGING_CURRENT)
 
-        success = await self.coordinator.async_start_charging()
+        success = await self.coordinator.async_set_current_limit(DEFAULT_CHARGING_CURRENT)
         if success:
-            await self.coordinator.async_set_current_limit(DEFAULT_CHARGING_CURRENT)
-            _LOGGER.info("Successfully started charging")
+            _LOGGER.info("Successfully resumed charging")
         else:
-            _LOGGER.error("Failed to start charging")
+            _LOGGER.error("Failed to resume charging")
 
     async def async_turn_off(self, **kwargs) -> None:
-        """Stop charging via stop command and set current to 0A."""
-        _LOGGER.info("Stopping charging")
+        """Pause charging by setting the current limit to 0A. Does NOT send the
+        ABB stop command (0x4105=1) — that ends the session and forces a re-badge.
+        The EV stops drawing power but the authorized session is preserved."""
+        _LOGGER.info("Pausing charging (current limit -> 0A, session kept alive)")
 
-        success = await self.coordinator.async_stop_charging()
+        success = await self.coordinator.async_set_current_limit(0)
         if success:
-            await self.coordinator.async_set_current_limit(0)
-            _LOGGER.info("Successfully stopped charging")
+            _LOGGER.info("Successfully paused charging")
         else:
-            _LOGGER.error("Failed to stop charging")
+            _LOGGER.error("Failed to pause charging")
