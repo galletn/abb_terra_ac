@@ -12,6 +12,7 @@ from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.data_entry_flow import FlowResult
 
 from .const import DOMAIN, CONF_UNIT_ID
+from . import get_unit_kwarg_name
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -71,7 +72,7 @@ class ABBTerraACConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
             # Try to read the first register
             result = client.read_holding_registers(
-                address=16384, count=1, device_id=unit_id
+                address=16384, count=1, **{get_unit_kwarg_name(client): unit_id}
             )
 
             client.close()
