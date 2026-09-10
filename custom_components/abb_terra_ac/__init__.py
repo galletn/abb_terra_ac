@@ -105,6 +105,24 @@ class ABBTerraACCoordinator(DataUpdateCoordinator):
             )
         return self._client
 
+    def _reset_client(self) -> None:
+        """Close and discard the Modbus client.
+
+        A wallbox-side reboot kills the TCP connection, but pymodbus's
+        `is_socket_open()` can keep reporting the old socket as open until the
+        next read/write attempt raises an exception instead of a clean error
+        result. If we never throw the client object away, every subsequent poll
+        keeps retrying on that same dead socket and fails forever - the wallbox
+        never comes back on its own. Calling reset_client() after any failure
+        forces the next poll or write to open a brand new connection.
+        """
+        if self._client is not None:
+             try:
+                self._client.close()
+            except Exception:
+                pass
+            self._client = None
+
     async def _async_update_data(self) -> dict:
         """Fetch data from the wallbox."""
         async with self._lock:
@@ -173,9 +191,14 @@ class ABBTerraACCoordinator(DataUpdateCoordinator):
 
             return data
 
+        except UpdateFailed:
+            self._reset_client()
+            raise
         except ModbusException as err:
+            self._reset_client()
             raise UpdateFailed(f"Modbus error: {err}") from err
         except Exception as err:
+            self._reset_client()
             raise UpdateFailed(f"Unexpected error: {err}") from err
 
     async def async_write_register(self, address: int, values: list[int]) -> bool:
@@ -194,6 +217,7 @@ class ABBTerraACCoordinator(DataUpdateCoordinator):
             if not client.is_socket_open():
                 if not client.connect():
                     _LOGGER.error("Failed to connect to wallbox for write")
+                    self._reset_client()
                     return False
 
             if len(values) == 1:
@@ -207,12 +231,14 @@ class ABBTerraACCoordinator(DataUpdateCoordinator):
 
             if result.isError():
                 _LOGGER.error("Modbus write error: %s", result)
+                self._reset_client()
                 return False
 
             return True
 
         except Exception as err:
             _LOGGER.error("Error writing register: %s", err)
+            self._reset_client()
             return False
 
     async def async_set_current_limit(self, amps: float) -> bool:
