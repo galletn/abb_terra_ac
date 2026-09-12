@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 from datetime import timedelta
 
@@ -18,6 +19,21 @@ from .const import DOMAIN, CONF_UNIT_ID, DEFAULT_SCAN_INTERVAL
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = [Platform.SENSOR, Platform.NUMBER, Platform.SWITCH, Platform.BUTTON]
+
+
+def get_unit_kwarg_name(client: ModbusTcpClient) -> str:
+    """Return the pymodbus keyword used to pass the Modbus unit/device id.
+
+    pymodbus renamed this keyword from `slave` to `device_id` in v3.8.
+    Home Assistant releases bundle different pymodbus versions, so detect
+    the right name at runtime instead of hardcoding one.
+    """
+    params = inspect.signature(client.read_holding_registers).parameters
+    if "device_id" in params:
+        return "device_id"
+    if "slave" in params:
+        return "slave"
+    return "unit"
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -90,6 +106,10 @@ class ABBTerraACCoordinator(DataUpdateCoordinator):
         self.port = port
         self.unit_id = unit_id
         self._client = None
+        # Detected lazily once a client exists; caches the pymodbus
+        # keyword ('device_id' or 'slave') used to pass the unit id, since
+        # this differs between pymodbus versions bundled with HA releases.
+        self._unit_kwarg_name: str | None = None
         # Serializes all Modbus operations: the wallbox accepts only one
         # active TCP session, so concurrent reads and writes on the shared
         # client would interleave on the same socket and corrupt responses.
@@ -103,7 +123,13 @@ class ABBTerraACCoordinator(DataUpdateCoordinator):
                 port=self.port,
                 timeout=3,
             )
+            self._unit_kwarg_name = get_unit_kwarg_name(self._client)
         return self._client
+
+    def _unit_kwargs(self) -> dict[str, int]:
+        """Return the unit-id kwarg for the current pymodbus version."""
+        kwarg_name = self._unit_kwarg_name or "device_id"
+        return {kwarg_name: self.unit_id}
 
     def _reset_client(self) -> None:
         """Close and discard the Modbus client.
@@ -117,7 +143,7 @@ class ABBTerraACCoordinator(DataUpdateCoordinator):
         forces the next poll or write to open a brand new connection.
         """
         if self._client is not None:
-             try:
+            try:
                 self._client.close()
             except Exception:
                 pass
@@ -140,7 +166,7 @@ class ABBTerraACCoordinator(DataUpdateCoordinator):
 
             # Read all registers from 0x4000 (16384) to 0x4020 (16416)
             result = client.read_holding_registers(
-                address=16384, count=33, device_id=self.unit_id
+                address=16384, count=33, **self._unit_kwargs()
             )
 
             if result.isError():
@@ -150,7 +176,7 @@ class ABBTerraACCoordinator(DataUpdateCoordinator):
                     raise UpdateFailed("Failed to reconnect to wallbox")
 
                 result = client.read_holding_registers(
-                    address=16384, count=33, device_id=self.unit_id
+                    address=16384, count=33, **self._unit_kwargs()
                 )
 
                 if result.isError():
@@ -222,11 +248,11 @@ class ABBTerraACCoordinator(DataUpdateCoordinator):
 
             if len(values) == 1:
                 result = client.write_register(
-                    address=address, value=values[0], device_id=self.unit_id
+                    address=address, value=values[0], **self._unit_kwargs()
                 )
             else:
                 result = client.write_registers(
-                    address=address, values=values, device_id=self.unit_id
+                    address=address, values=values, **self._unit_kwargs()
                 )
 
             if result.isError():
