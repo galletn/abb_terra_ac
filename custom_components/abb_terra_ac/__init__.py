@@ -64,7 +64,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
     if unload_ok:
-        hass.data[DOMAIN].pop(entry.entry_id)
+        coordinator = hass.data[DOMAIN].pop(entry.entry_id)
+        # Wallbox accepts one TCP session; release it so a reload can connect.
+        await hass.async_add_executor_job(coordinator._reset_client)
 
     return unload_ok
 
@@ -102,6 +104,8 @@ class ABBTerraACCoordinator(DataUpdateCoordinator):
                 host=self.host,
                 port=self.port,
                 timeout=3,
+                # Default 3 retries x 3s timeout outlasts the 5s poll interval.
+                retries=1,
             )
         return self._client
 
@@ -117,7 +121,7 @@ class ABBTerraACCoordinator(DataUpdateCoordinator):
         forces the next poll or write to open a brand new connection.
         """
         if self._client is not None:
-             try:
+            try:
                 self._client.close()
             except Exception:
                 pass
